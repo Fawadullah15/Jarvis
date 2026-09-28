@@ -1,0 +1,6 @@
+{
+  "name": "JARVIS Personal Computer AI Assistant",
+  "description": "Next-generation personal computer AI assistant with natural voice, computer control, autonomous multi-step execution, and local agent integration.",
+  "requestFramePermissions": ["clipboard-read", "clipboard-write", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

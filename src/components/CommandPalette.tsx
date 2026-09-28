@@ -76,9 +76,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {filtered.length === 0 ? (
             <div className="p-4 text-center text-xs text-slate-500">No matching commands found.</div>
           ) : (
-            filtered.map((item) => (
+            filtered.map((item, idx) => (
               <div
-                key={item.id}
+                key={`${item.id}-${idx}`}
                 onClick={() => {
                   onSelectAction(item.cmd);
                   onClose();

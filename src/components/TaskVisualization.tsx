@@ -89,7 +89,7 @@ export const TaskVisualization: React.FC<TaskVisualizationProps> = ({
           const isCurrent = idx === task.currentStepIndex && task.state === 'Executing';
           return (
             <div
-              key={step.id}
+              key={`${step.id}-${idx}`}
               className={`p-2.5 rounded-lg border text-xs transition-colors ${
                 step.status === 'completed'
                   ? 'bg-slate-900/40 border-slate-800/80 text-slate-300'

@@ -91,16 +91,76 @@ export async function executeAgentTool(tool: string, params: Record<string, any>
   return res.json();
 }
 
-export async function sendChatMessage(messages: ChatMessage[], context?: any) {
+export async function sendChatMessage(messages: ChatMessage[], context?: any, modelPreference = 'auto') {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, context }),
+    body: JSON.stringify({ messages, context, modelPreference }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Chat API error' }));
     throw new Error(err.error || 'Chat request failed');
   }
+  return res.json();
+}
+
+export async function searchGoogleGrounded(query: string) {
+  const res = await fetch('/api/search/grounded', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error('Search Grounding failed');
+  return res.json();
+}
+
+export async function searchMapsGrounded(query: string) {
+  const res = await fetch('/api/maps/grounded', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error('Maps Grounding failed');
+  return res.json();
+}
+
+export async function transcribeAudio(audioBase64: string, mimeType = 'audio/webm') {
+  const res = await fetch('/api/transcribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ audioBase64, mimeType }),
+  });
+  if (!res.ok) throw new Error('Audio transcription failed');
+  return res.json();
+}
+
+export async function generateImage(prompt: string, editImageBase64?: string, aspectRatio = '1:1') {
+  const res = await fetch('/api/image/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, editImageBase64, aspectRatio }),
+  });
+  if (!res.ok) throw new Error('Image generation failed');
+  return res.json();
+}
+
+export async function generateVideo(prompt?: string, imageBase64?: string, aspectRatio = '16:9') {
+  const res = await fetch('/api/video/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, imageBase64, aspectRatio }),
+  });
+  if (!res.ok) throw new Error('Video generation failed');
+  return res.json();
+}
+
+export async function generateMusic(prompt: string, type: 'clip' | 'pro' = 'clip') {
+  const res = await fetch('/api/music/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, type }),
+  });
+  if (!res.ok) throw new Error('Music generation failed');
   return res.json();
 }
 

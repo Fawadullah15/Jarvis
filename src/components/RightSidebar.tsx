@@ -258,9 +258,9 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
               </div>
 
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                {filteredProcesses.map((proc) => (
+                {filteredProcesses.map((proc, idx) => (
                   <div
-                    key={proc.pid}
+                    key={`${proc.pid}-${proc.name}-${idx}`}
                     className="p-2 rounded-lg bg-slate-900/40 border border-slate-800/80 flex items-center justify-between text-xs font-mono"
                   >
                     <div>
@@ -310,9 +310,9 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                   Workspace empty. Ask JARVIS to create files or folders.
                 </div>
               ) : (
-                workspaceFiles.map((file) => (
+                workspaceFiles.map((file, idx) => (
                   <div
-                    key={file.path}
+                    key={`${file.path}-${idx}`}
                     onClick={() => onOpenFileContent(file.path)}
                     className="p-2 rounded-lg bg-slate-900/40 hover:bg-slate-850 border border-slate-800/80 hover:border-cyan-500/30 flex items-center justify-between text-xs cursor-pointer transition-colors"
                   >
@@ -405,9 +405,9 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
             {/* Memory List */}
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-              {memories.map((mem) => (
+              {memories.map((mem, idx) => (
                 <div
-                  key={mem.id}
+                  key={`${mem.id}-${idx}`}
                   className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/80 text-xs space-y-1 group"
                 >
                   <div className="flex items-center justify-between">

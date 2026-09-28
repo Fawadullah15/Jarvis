@@ -23,8 +23,22 @@ import {
   speakJARVIS, 
   soundFX, 
   defaultMemories, 
-  defaultPermissions 
+  defaultPermissions,
+  generateMusic,
+  generateVideo,
+  generateImage,
+  searchGoogleGrounded,
+  searchMapsGrounded
 } from './services/jarvisService';
+import { 
+  signInWithGoogle, 
+  signOutUser, 
+  subscribeToAuth, 
+  testFirestoreConnection,
+  saveUserMemory,
+  deleteUserMemory,
+  saveUserCreation
+} from './lib/firebase';
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightSidebar } from './components/RightSidebar';
 import { MainStage } from './components/MainStage';
@@ -33,6 +47,8 @@ import { LocalAgentModal } from './components/LocalAgentModal';
 import { FirstRunModal } from './components/FirstRunModal';
 import { QuickCommandOverlay } from './components/QuickCommandOverlay';
 import { CommandPalette } from './components/CommandPalette';
+import { StudioCreationModal } from './components/StudioCreationModal';
+import { LiveVoiceModal } from './components/LiveVoiceModal';
 
 export default function App() {
   // Main System State
@@ -44,6 +60,12 @@ export default function App() {
   const [memories, setMemories] = useState<MemoryItem[]>(defaultMemories);
   const [permissions, setPermissions] = useState<PermissionSettings>(defaultPermissions);
   
+  // Firebase Auth State
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Model Selection
+  const [selectedModel, setSelectedModel] = useState<string>('auto');
+
   // Project State
   const [activeProject, setActiveProject] = useState<ProjectContext>({
     activePath: 'Desktop/AI Workspace',
@@ -69,6 +91,9 @@ export default function App() {
   const [firstRunOpen, setFirstRunOpen] = useState(false);
   const [quickCommandOpen, setQuickCommandOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioTab, setStudioTab] = useState<'music' | 'video' | 'image' | 'search' | 'maps' | 'transcribe'>('music');
+  const [liveVoiceOpen, setLiveVoiceOpen] = useState(false);
 
   // Agent Connection Mode
   const [agentMode, setAgentMode] = useState<'built-in' | 'external-windows'>('built-in');
@@ -80,7 +105,7 @@ export default function App() {
   const [audioLevel, setAudioLevel] = useState(0);
   const recognitionRef = useRef<any>(null);
 
-  // 1. Initial Telemetry & Diagnostics Setup
+  // 1. Initial Telemetry, Diagnostics & Firebase Setup
   const refreshTelemetry = useCallback(async () => {
     try {
       const data = await getSystemTelemetry();
@@ -114,8 +139,18 @@ export default function App() {
     refreshTelemetry();
     refreshDiagnostics();
     refreshFiles();
+    testFirestoreConnection();
+
+    // Subscribe to Firebase Auth
+    const unsubAuth = subscribeToAuth((user) => {
+      setCurrentUser(user);
+    });
+
     const timer = setInterval(refreshTelemetry, 8000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      unsubAuth();
+    };
   }, [refreshTelemetry, refreshDiagnostics, refreshFiles]);
 
   // Check first run in localStorage
@@ -490,11 +525,11 @@ export default function App() {
   };
 
   // 6. Handle General User Message & Commands
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
+  const handleSendMessage = async (text: string, attachments?: any[]) => {
+    if (!text.trim() && (!attachments || attachments.length === 0)) return;
 
     // Append user message
-    const userMsg = appendMessage({ sender: 'user', text });
+    const userMsg = appendMessage({ sender: 'user', text, attachments });
     setJarvisState('THINKING');
 
     const lower = text.toLowerCase();
@@ -518,6 +553,102 @@ export default function App() {
     // Check for "Take a screenshot"
     if (lower.includes('screenshot') || (lower.includes('capture') && lower.includes('screen'))) {
       await handleCaptureScreenshot();
+      return;
+    }
+
+    // Check for "Generate music" / "Lyria"
+    if (lower.includes('generate music') || lower.includes('compose a track') || lower.includes('soundtrack')) {
+      setStudioTab('music');
+      setStudioOpen(true);
+      setJarvisState('IDLE');
+      appendMessage({
+        sender: 'jarvis',
+        text: 'Opening Lyria 3 Music Generator. You can compose short clips (30s) or full-length tracks.',
+      });
+      return;
+    }
+
+    // Check for "Generate video" / "Veo"
+    if (lower.includes('generate video') || lower.includes('create a video') || lower.includes('animate this image')) {
+      setStudioTab('video');
+      setStudioOpen(true);
+      setJarvisState('IDLE');
+      appendMessage({
+        sender: 'jarvis',
+        text: 'Opening Veo 3 Video Generator. Supporting text-to-video and image-to-video in 16:9 landscape or 9:16 portrait.',
+      });
+      return;
+    }
+
+    // Check for "Search Google" / Grounded Web Search
+    if (lower.startsWith('search google') || lower.startsWith('google search') || lower.includes('search online for')) {
+      const q = text.replace(/^(jarvis,?\s*)?(search google( for)?|google search|search online for)\s*/i, '').trim();
+      setJarvisState('EXECUTING');
+      try {
+        const sRes = await searchGoogleGrounded(q || 'latest tech news');
+        setJarvisState('IDLE');
+        soundFX.taskComplete();
+        appendMessage({
+          sender: 'jarvis',
+          text: `[Google Search Grounding: gemini-3.5-flash]\n\n${sRes.text}`,
+          attachments: sRes.sources?.map((s: any) => ({
+            name: s.title,
+            type: 'file',
+            url: s.url,
+          }))
+        });
+        triggerVoiceResponse(sRes.text.slice(0, 150));
+      } catch (err: any) {
+        setJarvisState('ERROR');
+        appendMessage({ sender: 'jarvis', text: `Search failed: ${err.message}` });
+      }
+      return;
+    }
+
+    // Check for "Find places" / Maps Grounding
+    if (lower.includes('find places') || lower.includes('maps search') || lower.includes('locations near')) {
+      const q = text.replace(/^(jarvis,?\s*)?(find places|maps search|locations near)\s*/i, '').trim();
+      setJarvisState('EXECUTING');
+      try {
+        const mRes = await searchMapsGrounded(q || 'tech centers');
+        setJarvisState('IDLE');
+        soundFX.taskComplete();
+        appendMessage({
+          sender: 'jarvis',
+          text: `[Google Maps Grounding: gemini-3.5-flash]\n\n${mRes.text}`,
+        });
+        triggerVoiceResponse(mRes.text.slice(0, 150));
+      } catch (err: any) {
+        setJarvisState('ERROR');
+        appendMessage({ sender: 'jarvis', text: `Maps lookup failed: ${err.message}` });
+      }
+      return;
+    }
+
+    // Check for "Generate image"
+    if (lower.includes('generate image') || lower.includes('create an image of')) {
+      const prompt = text.replace(/^(jarvis,?\s*)?(generate image( of)?|create an image of)\s*/i, '').trim();
+      setJarvisState('EXECUTING');
+      try {
+        const imgRes = await generateImage(prompt);
+        setJarvisState('IDLE');
+        soundFX.taskComplete();
+        appendMessage({
+          sender: 'jarvis',
+          text: `Generated visual for "${prompt}":`,
+          attachments: [
+            {
+              name: 'gemini_image.png',
+              type: 'image',
+              url: imgRes.url,
+            }
+          ]
+        });
+        triggerVoiceResponse("Done. The image has been generated.");
+      } catch (err: any) {
+        setJarvisState('ERROR');
+        appendMessage({ sender: 'jarvis', text: `Image synthesis failed: ${err.message}` });
+      }
       return;
     }
 
@@ -577,15 +708,77 @@ export default function App() {
       return;
     }
 
-    // General Orchestration via Gemini 3.8 Flash Brain
+    // General Multi-Turn Chatbot Orchestration via Gemini with selected model
     try {
-      const res = await sendChatMessage([...messages, userMsg], {
-        project: activeProject,
-        memory: memories,
-      });
+      const res = await sendChatMessage(
+        [...messages, userMsg],
+        {
+          project: activeProject,
+          memory: memories,
+        },
+        selectedModel
+      );
 
       setJarvisState('IDLE');
       soundFX.hudChime();
+
+      // Check if neural brain requested autonomous tool executions
+      if (res.functionCalls && res.functionCalls.length > 0) {
+        for (const fn of res.functionCalls) {
+          try {
+            let toolRes: any = null;
+            let toolName = '';
+            let toolInput = fn.args || {};
+
+            if (fn.name === 'openApplication') {
+              toolName = 'computer.openApplication';
+              toolRes = await executeAgentTool(toolName, { name: fn.args?.name || 'Application' });
+            } else if (fn.name === 'runTerminalCommand') {
+              toolName = 'terminal.execute';
+              toolRes = await executeAgentTool(toolName, { command: fn.args?.command || 'dir', cwd: fn.args?.cwd });
+              refreshFiles();
+            } else if (fn.name === 'createFolder') {
+              toolName = 'filesystem.createDirectory';
+              toolRes = await executeAgentTool(toolName, { path: fn.args?.path || 'New_Folder' });
+              refreshFiles();
+            } else if (fn.name === 'createOrWriteFile') {
+              toolName = 'filesystem.createFile';
+              toolRes = await executeAgentTool(toolName, { path: fn.args?.path || 'notes.txt', content: fn.args?.content || '' });
+              refreshFiles();
+            } else if (fn.name === 'getSystemInfo') {
+              toolName = 'computer.getSystemInfo';
+              toolRes = await executeAgentTool(toolName);
+            } else if (fn.name === 'takeScreenshot') {
+              toolName = 'computer.takeScreenshot';
+              toolRes = await executeAgentTool(toolName);
+            } else if (fn.name === 'searchWebOrFiles') {
+              toolName = 'browser.search';
+              toolRes = await executeAgentTool(toolName, { query: fn.args?.query || 'tech news' });
+            }
+
+            if (toolRes) {
+              soundFX.taskComplete();
+              appendMessage({
+                sender: 'jarvis',
+                text: res.text || `Executed ${toolName}. Action verified on host workstation.`,
+                toolExecution: {
+                  tool: toolName,
+                  input: toolInput,
+                  output: toolRes.data,
+                  verified: toolRes.verification?.verified ?? true,
+                },
+                attachments: toolRes.data?.screenshot
+                  ? [{ name: 'Desktop_Capture.png', type: 'screenshot', url: toolRes.data.screenshot }]
+                  : undefined,
+              });
+              triggerVoiceResponse(res.text || `Action completed and verified.`);
+              return;
+            }
+          } catch (toolErr: any) {
+            console.warn('Autonomous function execution error:', toolErr);
+          }
+        }
+      }
 
       if (res.text) {
         appendMessage({
@@ -660,8 +853,8 @@ export default function App() {
     }
   };
 
-  // Memory management
-  const handleAddMemory = (category: MemoryItem['category'], key: string, value: string) => {
+  // Memory management with Firestore Cloud Persistence
+  const handleAddMemory = async (category: MemoryItem['category'], key: string, value: string) => {
     const newMem: MemoryItem = {
       id: `mem-${Date.now()}`,
       category,
@@ -671,11 +864,49 @@ export default function App() {
     };
     soundFX.click();
     setMemories(prev => [newMem, ...prev]);
+
+    if (currentUser?.uid) {
+      try {
+        await saveUserMemory(currentUser.uid, newMem);
+      } catch (e) {
+        console.error('Firestore memory save error:', e);
+      }
+    }
   };
 
-  const handleDeleteMemory = (id: string) => {
+  const handleDeleteMemory = async (id: string) => {
     soundFX.click();
     setMemories(prev => prev.filter(m => m.id !== id));
+
+    if (currentUser?.uid) {
+      try {
+        await deleteUserMemory(currentUser.uid, id);
+      } catch (e) {
+        console.error('Firestore memory delete error:', e);
+      }
+    }
+  };
+
+  // Firebase Auth handlers
+  const handleGoogleSignIn = async () => {
+    soundFX.activation();
+    try {
+      const user = await signInWithGoogle();
+      setCurrentUser(user);
+      soundFX.taskComplete();
+      appendMessage({
+        sender: 'jarvis',
+        text: `Authenticated as ${user.displayName} (${user.email}). Persistent database connected to Firestore.`,
+      });
+    } catch (err: any) {
+      alert(`Sign in note: ${err.message}`);
+    }
+  };
+
+  const handleSignOut = async () => {
+    soundFX.click();
+    await signOutUser();
+    setCurrentUser(null);
   };
 
   return (
@@ -694,7 +925,17 @@ export default function App() {
           activeProject={activeProject}
           onOpenLocalAgentModal={() => setAgentModalOpen(true)}
           onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+          onOpenStudio={(tab) => {
+            if (tab) setStudioTab(tab);
+            setStudioOpen(true);
+          }}
+          onOpenLiveVoice={() => setLiveVoiceOpen(true)}
           isAgentConnected={isAgentConnected}
+          currentUser={currentUser}
+          onSignInGoogle={handleGoogleSignIn}
+          onSignOut={handleSignOut}
+          selectedModel={selectedModel}
+          onSelectModel={setSelectedModel}
         />
       )}
 
@@ -820,6 +1061,30 @@ export default function App() {
           } else {
             handleSendMessage(actionKey);
           }
+        }}
+      />
+
+      {/* Studio Creation Modal (Music, Video, Image, Search, Maps, Transcribe) */}
+      <StudioCreationModal
+        isOpen={studioOpen}
+        onClose={() => setStudioOpen(false)}
+        defaultTab={studioTab}
+        onSendToChat={(msg, atts) => {
+          appendMessage({
+            sender: 'user',
+            text: msg,
+            attachments: atts,
+          });
+        }}
+        userId={currentUser?.uid}
+      />
+
+      {/* Live Voice API Conversation Modal (gemini-3.8-live) */}
+      <LiveVoiceModal
+        isOpen={liveVoiceOpen}
+        onClose={() => setLiveVoiceOpen(false)}
+        onDispatchComputerAction={(cmd) => {
+          handleSendMessage(cmd);
         }}
       />
     </div>

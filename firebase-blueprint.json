@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "email"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "User execution plan and task steps",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userRequest": { "type": "string" },
+        "state": { "type": "string" },
+        "currentStepIndex": { "type": "number" },
+        "steps": { "type": "array" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "result": { "type": "string" }
+      },
+      "required": ["id", "userId", "userRequest", "state"]
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "Persistent memory item for user preferences and context",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "category": { "type": "string" },
+        "key": { "type": "string" },
+        "value": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "key", "value"]
+    },
+    "Creation": {
+      "title": "Creation",
+      "description": "AI generated media asset such as music, video, image, or document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["image", "video", "music", "document", "code"] },
+        "prompt": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "type", "prompt"]
+    },
+    "Automation": {
+      "title": "Automation",
+      "description": "Scheduled automation rule for user workflows",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "trigger": { "type": "string" },
+        "action": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "lastRun": { "type": "number" }
+      },
+      "required": ["id", "userId", "title", "trigger", "action"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "User tasks and execution steps"
+    },
+    "/users/{userId}/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "User persistent memory records"
+    },
+    "/users/{userId}/creations/{creationId}": {
+      "schema": "Creation",
+      "description": "User generated creations (music, image, video)"
+    },
+    "/users/{userId}/automations/{automationId}": {
+      "schema": "Automation",
+      "description": "User scheduled automated routines"
+    }
+  }
+}

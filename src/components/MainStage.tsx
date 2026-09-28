@@ -311,9 +311,9 @@ export const MainStage: React.FC<MainStageProps> = ({
         ) : (
           /* CONVERSATION THREAD */
           <div className="space-y-4 max-w-3xl mx-auto w-full">
-            {messages.map((msg) => (
+            {messages.map((msg, idx) => (
               <div
-                key={msg.id}
+                key={`${msg.id}-${idx}`}
                 className={`flex gap-3 text-xs leading-relaxed animate-fade-in ${
                   msg.sender === 'user' ? 'justify-end' : 'justify-start'
                 }`}
